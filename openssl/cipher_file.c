@@ -11,9 +11,9 @@
 #define EN_NAME "pid.c.en" 
 #define DE_NAME "pid.c.de" 
 
-int ase_128_ecb_encrypt_file(const char* inf, const char* outf, const char* key, bool enc, bool base64)
+int ase_encrypt_file(const char* inf, const char* outf, const char* key, const unsigned char* iv, bool enc, bool base64)
 {
-    static const char magic[]="dMan__";
+    static const char magic[]="XXXX__";
     char mbuf[sizeof magic-1];
 	unsigned char *buff=NULL;
 	int bsize=BSIZE;
@@ -27,6 +27,7 @@ int ase_128_ecb_encrypt_file(const char* inf, const char* outf, const char* key,
     //OpenSSL_add_all_ciphers();
     //cipher=EVP_get_cipherbyname("aes-128-ecb");
     cipher=EVP_aes_128_ecb();
+    //cipher=EVP_aes_128_cbc();
 
 	in=BIO_new(BIO_s_file());
 	out=BIO_new(BIO_s_file());
@@ -93,7 +94,7 @@ int ase_128_ecb_encrypt_file(const char* inf, const char* outf, const char* key,
         goto end;
     }
 
-    if (!EVP_CipherInit_ex(ctx, NULL, NULL, (unsigned char*)key, NULL, enc))
+    if (!EVP_CipherInit_ex(ctx, NULL, NULL, (unsigned char*)key, iv, enc))
     {
         ret = -1;
         goto end;
@@ -131,9 +132,13 @@ end:
 
 int main(int argc, char* argv[])
 {
-    ase_128_ecb_encrypt_file(IN_NAME, EN_NAME, KEY, true, false);
+    unsigned  char iv[AES_BLOCK_SIZE];
+    for(int i=0;i<AES_BLOCK_SIZE;++i)
+        iv[i]=i;
 
-    ase_128_ecb_encrypt_file(EN_NAME, DE_NAME, KEY, false, false);
+    ase_encrypt_file(IN_NAME, EN_NAME, KEY, iv, true, false);
+
+    ase_encrypt_file(EN_NAME, DE_NAME, KEY, iv, false, false);
 
     return 0;
 }
