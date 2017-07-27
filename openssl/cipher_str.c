@@ -31,18 +31,15 @@ unsigned char* aes_128_ecb_encrypt_string(const unsigned char* in, int inl, int*
         if (base64)
         {
             int out1l = outl1+outl2;
-            char* out1 = strndup((char*)out, outl1+outl2);
+            unsigned char* out1 = (unsigned char *)OPENSSL_malloc(out1l);
+            memcpy(out1, out, out1l);
             memset(out, 0, EVP_ENCODE_LENGTH(inl));
-            unsigned char* out2 = (unsigned char *)OPENSSL_malloc(EVP_ENCODE_LENGTH(inl));
             EVP_ENCODE_CTX bctx;
             EVP_EncodeInit(&bctx);
-            EVP_EncodeUpdate(&bctx, (unsigned char*)out2, &outl1, (unsigned char*)out1, out1l);
-            memcpy(out, out2, outl1);
-            EVP_EncodeFinal(&bctx, (unsigned char*)out2, &outl2);
-            memcpy(out+outl1, out2, outl2);
+            EVP_EncodeUpdate(&bctx, out, &outl1, (unsigned char*)out1, out1l);
+            EVP_EncodeFinal(&bctx, out+outl1, &outl2);
 
             OPENSSL_free(out1);
-            OPENSSL_free(out2);
             *outl = outl1+outl2;
             return out;
         }
@@ -60,18 +57,13 @@ unsigned char* aes_128_ecb_encrypt_string(const unsigned char* in, int inl, int*
         {
             int dbufl1, dbufl2;
             unsigned char* dbuf = (unsigned char*)OPENSSL_malloc(inl);
-            unsigned char* tbuf = (unsigned char*)OPENSSL_malloc(inl);
             EVP_ENCODE_CTX dctx;
             EVP_DecodeInit(&dctx);
-            EVP_DecodeUpdate(&dctx, (unsigned char*)tbuf, &dbufl1, (unsigned char*)in, inl);
-            memcpy(dbuf, tbuf, dbufl1);
-            EVP_DecodeFinal(&dctx, (unsigned char*)tbuf, &dbufl2);
-            memcpy(dbuf+dbufl1, tbuf, dbufl2);
+            EVP_DecodeUpdate(&dctx, dbuf, &dbufl1, (unsigned char*)in, inl);
+            EVP_DecodeFinal(&dctx, dbuf+dbufl1, &dbufl2);
 
             din = dbuf;
             dinl = dbufl1 + dbufl2;
-
-            OPENSSL_free(tbuf);
         }
         
         if(!EVP_DecryptInit_ex(&ctx,c,NULL,key,NULL))
