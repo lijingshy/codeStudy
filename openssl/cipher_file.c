@@ -6,12 +6,12 @@
 
 #define BSIZE   (8*1024)
 
-#define KEY "abc123"
+#define PASSWD "abc123"
 #define IN_NAME "pid.c" 
 #define EN_NAME "pid.c.en" 
 #define DE_NAME "pid.c.de" 
 
-int ase_encrypt_file(const char* inf, const char* outf, const char* key, const unsigned char* iv, bool enc, bool base64)
+int ase_encrypt_file(const char* inf, const char* outf, const char* passwd, bool enc, bool base64)
 {
     static const char magic[]="XXXX__";
     char mbuf[sizeof magic-1];
@@ -21,6 +21,7 @@ int ase_encrypt_file(const char* inf, const char* outf, const char* key, const u
 	const EVP_CIPHER *cipher=NULL;
 	EVP_CIPHER_CTX *ctx = NULL;
 	BIO *in=NULL,*out=NULL,*b64=NULL,*benc=NULL,*rbio=NULL,*wbio=NULL;
+    unsigned char key[EVP_MAX_KEY_LENGTH],iv[EVP_MAX_IV_LENGTH];
 
     buff=(unsigned char *)OPENSSL_malloc(EVP_ENCODE_LENGTH(bsize));
 
@@ -80,6 +81,11 @@ int ase_encrypt_file(const char* inf, const char* outf, const char* key, const u
         goto end;
     }
 
+    //get key and iv
+    EVP_BytesToKey(cipher,EVP_md5(),NULL,
+        (unsigned char *)passwd,
+        strlen(passwd),1,key,iv);
+
     //cipher
     if ((benc=BIO_new(BIO_f_cipher())) == NULL) 
     {
@@ -88,13 +94,7 @@ int ase_encrypt_file(const char* inf, const char* outf, const char* key, const u
     }
 
     BIO_get_cipher_ctx(benc, &ctx);
-    if (!EVP_CipherInit_ex(ctx, cipher, NULL, NULL, NULL, enc))
-    {
-        ret = -1;
-        goto end;
-    }
-
-    if (!EVP_CipherInit_ex(ctx, NULL, NULL, (unsigned char*)key, iv, enc))
+    if (!EVP_CipherInit_ex(ctx, cipher, NULL, key, iv, enc))
     {
         ret = -1;
         goto end;
@@ -132,13 +132,9 @@ end:
 
 int main(int argc, char* argv[])
 {
-    unsigned  char iv[AES_BLOCK_SIZE];
-    for(int i=0;i<AES_BLOCK_SIZE;++i)
-        iv[i]=i;
+    ase_encrypt_file(IN_NAME, EN_NAME, PASSWD, true, false);
 
-    ase_encrypt_file(IN_NAME, EN_NAME, KEY, iv, true, false);
-
-    ase_encrypt_file(EN_NAME, DE_NAME, KEY, iv, false, false);
+    ase_encrypt_file(EN_NAME, DE_NAME, PASSWD, false, false);
 
     return 0;
 }
