@@ -7,6 +7,7 @@ unsigned char* aes_128_ecb_encrypt_string(const unsigned char* in, int inl, int*
     const EVP_CIPHER* c=EVP_aes_128_ecb();
     EVP_CIPHER_CTX ctx;
     unsigned char* out = NULL;
+    unsigned char* bbuf = NULL;
     int outl1 = 0, outl2 = 0;
 
     out = (unsigned char *)OPENSSL_malloc(EVP_ENCODE_LENGTH(inl));
@@ -16,30 +17,30 @@ unsigned char* aes_128_ecb_encrypt_string(const unsigned char* in, int inl, int*
     {
         if(!EVP_EncryptInit_ex(&ctx,c,NULL,key,NULL))
         {
-            return NULL;
+            goto err;
         }
 
         if(!EVP_EncryptUpdate(&ctx,out,&outl1,in,inl))
         {
-            return NULL;
+            goto err;
         }
         if(!EVP_EncryptFinal_ex(&ctx,out+outl1,&outl2))
         {
-            return NULL;
+            goto err;
         }
 
         if (base64)
         {
             int out1l = outl1+outl2;
-            unsigned char* out1 = (unsigned char *)OPENSSL_malloc(out1l);
-            memcpy(out1, out, out1l);
+            bbuf = (unsigned char *)OPENSSL_malloc(out1l);
+            memcpy(bbuf, out, out1l);
             memset(out, 0, EVP_ENCODE_LENGTH(inl));
             EVP_ENCODE_CTX bctx;
             EVP_EncodeInit(&bctx);
-            EVP_EncodeUpdate(&bctx, out, &outl1, (unsigned char*)out1, out1l);
+            EVP_EncodeUpdate(&bctx, out, &outl1, bbuf, out1l);
             EVP_EncodeFinal(&bctx, out+outl1, &outl2);
 
-            OPENSSL_free(out1);
+            OPENSSL_free(bbuf);
             *outl = outl1+outl2;
             return out;
         }
@@ -55,32 +56,28 @@ unsigned char* aes_128_ecb_encrypt_string(const unsigned char* in, int inl, int*
         int dinl = inl;
         if (base64)
         {
-            int dbufl1, dbufl2;
-            unsigned char* dbuf = (unsigned char*)OPENSSL_malloc(inl);
+            bbuf = (unsigned char*)OPENSSL_malloc(inl);
             EVP_ENCODE_CTX dctx;
             EVP_DecodeInit(&dctx);
-            EVP_DecodeUpdate(&dctx, dbuf, &dbufl1, (unsigned char*)in, inl);
-            EVP_DecodeFinal(&dctx, dbuf+dbufl1, &dbufl2);
+            EVP_DecodeUpdate(&dctx, bbuf, &outl1, (unsigned char*)in, inl);
+            EVP_DecodeFinal(&dctx, bbuf+outl1, &outl2);
 
-            din = dbuf;
-            dinl = dbufl1 + dbufl2;
+            din = bbuf;
+            dinl = outl1 + outl2;
         }
         
         if(!EVP_DecryptInit_ex(&ctx,c,NULL,key,NULL))
         {
-            if (base64) OPENSSL_free((unsigned char*)din);
-            return NULL;
+            goto err;
         }
 
         if(!EVP_DecryptUpdate(&ctx,out,&outl1,din,dinl))
         {
-            if (base64) OPENSSL_free((unsigned char*)din);
-            return NULL;
+            goto err;
         }
         if(!EVP_DecryptFinal_ex(&ctx,out+outl1,&outl2))
         {
-            if (base64) OPENSSL_free((unsigned char*)din);
-            return NULL;
+            goto err;
         }
 
         if (base64) OPENSSL_free((unsigned char*)din);
@@ -88,7 +85,8 @@ unsigned char* aes_128_ecb_encrypt_string(const unsigned char* in, int inl, int*
         return out;
     }
 
-end:
+err:
+    if (bbuf != NULL) OPENSSL_free(bbuf);
     if (out != NULL) OPENSSL_free(out);
     return NULL;
 }
